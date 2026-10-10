@@ -160,6 +160,23 @@ trait FritzSmartHomeWebhook
         return ['credentials'=>$c,'sid'=>$sid,'devices'=>$items];
     }
 
+    private function webBulkCommand(array $payload): array
+    {
+        if (array_diff(array_keys($payload), ['action','value'])
+            || !is_int($payload['value'] ?? null) && !is_float($payload['value'] ?? null)) {
+            throw new InvalidArgumentException('Invalid bulk setpoint request.');
+        }
+        $temperature = (float)$payload['value'];
+        if (!is_finite($temperature) || $temperature < 8 || $temperature > 28
+            || abs($temperature * 2 - round($temperature * 2)) > 0.00001) {
+            throw new InvalidArgumentException('Use 8-28 °C in half-degree steps.');
+        }
+        $result = json_decode($this->SetAllThermostatsTemperature($temperature), true);
+        if (!is_array($result)) throw new RuntimeException('Could not read bulk command response.');
+        return ['ok'=>count($result['failed'] ?? []) === 0 && !isset($result['error']),
+            'report'=>$result];
+    }
+
     private function webCommand(array $payload): array
     {
         if (array_diff(array_keys($payload), ['action','ain','value'])
@@ -266,6 +283,9 @@ trait FritzSmartHomeWebhook
                 }
                 $data = json_decode($body, true, 8, JSON_THROW_ON_ERROR);
                 if (!is_array($data)) throw new InvalidArgumentException('Invalid JSON body.');
+                if (($data['action'] ?? null) === 'bulk_setpoint') {
+                    return $reply(200, $this->webBulkCommand($data));
+                }
                 return $reply(200, $this->webCommand($data));
             }
             if (($query['view'] ?? '') === 'state') {
