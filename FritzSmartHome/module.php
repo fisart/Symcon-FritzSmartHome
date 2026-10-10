@@ -12,6 +12,8 @@ class FritzSmartHome extends IPSModule
         $this->RegisterPropertyBoolean('Enabled', true);
         $this->RegisterPropertyBoolean('DebugEnabled', false);
         $this->RegisterTimer('Poll', 60000, 'FSH_Poll($_IPS["TARGET"]);');
+        $this->RegisterAttributeString('LastBulkThermostats', '{}');
+        $this->RegisterVariableString('LastBulkReport', 'Last Bulk Temperature Report (JSON)', '', 997);
         $this->RegisterVariableString('LastError', 'Last Error', '', 998);
         $this->RegisterVariableString('Debug', 'Debug', '', 999);
     }
@@ -293,6 +295,8 @@ class FritzSmartHome extends IPSModule
             'thermostatsOnline' => 0,
             'thermostatsOffline' => 0,
             'discovered' => [],
+            'previousThermostatsDiscovered' => 0,
+            'missingSincePrevious' => [],
             'successful' => [],
             'failed' => [],
             'details' => []
@@ -322,12 +326,17 @@ class FritzSmartHome extends IPSModule
 
         $report['totalDevicesDiscovered'] = count($xml->device);
         $report['stage'] = 'commands';
+        $previousInventory = json_decode($this->ReadAttributeString('LastBulkThermostats'), true);
+        if (!is_array($previousInventory)) $previousInventory = [];
+        $report['previousThermostatsDiscovered'] = count($previousInventory);
+        $currentInventory = [];
         $target = (int)round($temperature * 2);
         foreach ($xml->device as $device) {
             if (!isset($device->hkr)) continue;
             $ain = trim((string)$device['identifier']);
             if ($ain === '') continue;
             $name = trim((string)$device->name) ?: $ain;
+            $currentInventory[preg_replace('/\\s+/u', '', $ain)] = $name;
             $online = (string)$device->present === '1';
             $report['thermostatsDiscovered']++;
             $report['discovered'][] = ['name'=>$name, 'ain'=>$ain, 'online'=>$online];
@@ -382,9 +391,31 @@ class FritzSmartHome extends IPSModule
                 ($detail['confirmed'] ? 'confirmed' : $detail['reason']) . ', ' .
                 count($detail['readbackAttempts']) . ' read(s)');
         }
+        foreach ($previousInventory as $oldAIN => $oldName) {
+            if (!array_key_exists((string)$oldAIN, $currentInventory)) {
+                $report['missingSincePrevious'][] = [
+                    'name' => (string)$oldName, 'ain' => (string)$oldAIN
+                ];
+            }
+        }
+        $this->WriteAttributeString('LastBulkThermostats',
+            json_encode($currentInventory, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         $report['stage'] = 'complete';
-        $report['status'] = count($report['failed']) > 0 ? 'partial'
-            : ($report['thermostatsDiscovered'] === 0 ? 'no_thermostats' : 'success');
+        $report['status'] = $report['thermostatsDiscovered'] === 0 ? 'no_thermostats'
+            : (count($report['failed']) > 0
+                ? (count($report['successful']) > 0 ? 'partial' : 'failed')
+                : (count($report['missingSincePrevious']) > 0 ? 'discovery_changed' : 'success'));
+        if (count($report['failed']) > 0) {
+            $this->SetValue('LastError', count($report['failed']) .
+                ' thermostat(s) failed in bulk setpoint command; see Last Bulk Temperature Report.');
+        } elseif ($report['status'] === 'no_thermostats') {
+            $this->SetValue('LastError', 'No thermostats discovered on this FRITZ!Box.');
+        } elseif (count($report['missingSincePrevious']) > 0) {
+            $this->SetValue('LastError', count($report['missingSincePrevious']) .
+                ' previously discovered thermostat(s) missing; see Last Bulk Temperature Report.');
+        } else {
+            $this->SetValue('LastError', '');
+        }
         $this->logDebug('Bulk temperature ' . $temperature . ' C: ' . count($report['successful'])
             . ' succeeded, ' . count($report['failed']) . ' failed');
         return $this->completeBulkReport($report, $started);
@@ -396,7 +427,9 @@ class FritzSmartHome extends IPSModule
         $report['failedCount'] = count($report['failed']);
         $report['durationMs'] = round((microtime(true) - $started) * 1000);
         $json = json_encode($report, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        return $json === false ? '{"status":"error","error":"JSON encoding failed"}' : $json;
+        if ($json === false) $json = '{"status":"error","error":"JSON encoding failed"}';
+        $this->SetValue('LastBulkReport', $json);
+        return $json;
     }
 
     public function Poll(): void
