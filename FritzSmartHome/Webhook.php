@@ -255,7 +255,7 @@ trait FritzSmartHomeWebhook
         return ['ok'=>true,'name'=>$matched['name'],'action'=>$action,'confirmed'=>true];
     }
 
-    protected function ProcessHookData(): void
+    protected function ProcessHookData()
     {
         $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
         $body = $method === 'POST' ? (string)file_get_contents('php://input', false, null, 0, 16385) : '';
