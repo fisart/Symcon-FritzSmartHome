@@ -173,7 +173,7 @@ trait FritzSmartHomeWebhook
         }
         $result = json_decode($this->SetAllThermostatsTemperature($temperature), true);
         if (!is_array($result)) throw new RuntimeException('Could not read bulk command response.');
-        return ['ok'=>count($result['failed'] ?? []) === 0 && !isset($result['error']),
+        return ['ok'=>($result['status'] ?? '') === 'success' && count($result['failed'] ?? []) === 0 && !isset($result['error']),
             'report'=>$result];
     }
 
@@ -201,8 +201,27 @@ trait FritzSmartHomeWebhook
             $expected = $value ? '1' : '0';
             $result = $this->aha($state['credentials'], $state['sid'], $command, $matched['ain']);
             if ($result === null) throw new RuntimeException('Switch command failed.');
-            $readback = $this->aha($state['credentials'], $state['sid'], 'getswitchstate', $matched['ain']);
-            if ($readback !== $expected) throw new RuntimeException('Switch state not yet confirmed; refresh status.');
+            $confirmed = false;
+            foreach ([0, 250000] as $delay) {
+                if ($delay > 0) usleep($delay);
+                $readback = $this->aha($state['credentials'], $state['sid'], 'getswitchstate', $matched['ain']);
+                if ($readback === $expected) { $confirmed = true; break; }
+            }
+            if (!$confirmed) {
+                // Some AVM devices return "inval" for getswitchstate but are
+                // present in the full AHA device list. Verify that fallback.
+                $list = $this->aha($state['credentials'], $state['sid'], 'getdevicelistinfos');
+                $xml = $list === null ? false : @simplexml_load_string($list);
+                if ($xml !== false) {
+                    foreach ($xml->device as $dev) {
+                        if (preg_replace('/\\s+/u', '', (string)$dev['identifier']) !==
+                            preg_replace('/\\s+/u', '', $matched['ain'])) continue;
+                        if (trim((string)$dev->switch->state) === $expected) $confirmed = true;
+                        break;
+                    }
+                }
+            }
+            if (!$confirmed) throw new RuntimeException('Switch state not yet confirmed; refresh status.');
         } elseif (($action === 'setpoint' || $action === 'mode') && $matched['type'] === 'thermostat') {
             if ($action === 'setpoint') {
                 if (!is_int($value) && !is_float($value)) throw new InvalidArgumentException('Temperature must be numeric.');
