@@ -1,0 +1,27 @@
+name: PHP and dashboard syntax
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate module JSON
+        run: |
+          python3 -m json.tool library.json > /dev/null
+          python3 -m json.tool FritzSmartHome/module.json > /dev/null
+      - name: Lint PHP
+        run: find FritzSmartHome -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Check embedded dashboard JavaScript
+        run: |
+          python3 - <<'PY'
+          import pathlib, re
+          data = pathlib.Path('FritzSmartHome/page.html').read_text()
+          match = re.search(r'<script nonce="{{NONCE}}">([\s\S]*?)</script>', data)
+          if not match:
+              raise SystemExit("Missing dashboard JavaScript block")
+          pathlib.Path('/tmp/fritz-dashboard.js').write_text(match.group(1))
+          PY
+          node --check /tmp/fritz-dashboard.js
