@@ -20,3 +20,14 @@ Actual and target temperature, comfort/economy temperature, battery percent/low 
 * Login supports AVM legacy Challenge-Response. On failed login, inspect the `Last Error` and `Debug` variables. HTTP credentials/SIDs are never logged.
 * This is an initial implementation. Test switching and thermostat control on a non-critical device before relying on it for unattended heating.
 * AVM documentation: [AHA HTTP Interface](https://fritz.com/fileadmin/user_upload/Global/Service/Schnittstellen/AHA-HTTP-Interface.pdf).
+
+## Set all thermostat target temperatures
+
+Call from any IP-Symcon PHP script:
+
+```php
+$result = FSH_SetAllThermostatsTemperature($instanceID, 21.0);
+echo $result; // JSON listing successful and failed thermostat updates
+```
+
+Accepted values: 8–28°C in 0.5°C increments. The method discovers HKR thermostats belonging to this FRITZ!Box, skips offline devices, issues `sethkrtsoll`, and verifies with `gethkrtsoll`. Each configured FRITZ!Box requires its own module instance; the call targets only the given instance.
