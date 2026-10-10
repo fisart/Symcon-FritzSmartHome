@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FRITZ! Smart Home • Control Center</title>
+<style nonce="{{NONCE}}">
+:root{color-scheme:light;--ink:#163344;--muted:#667d89;--line:#dce5e9;--bg:#f3f7f9;--white:#fff;--accent:#087f8b;--dark:#065a68;--soft:#e6f4f3;--bad:#a73535;--warning:#8e5f11}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-size:15px;line-height:1.5}.shell{max-width:1210px;margin:auto;padding:0 26px 65px}header{background:linear-gradient(112deg,#163c52,#0a6570);color:white;padding:28px 0 36px}header .shell{padding-bottom:0}.top{display:flex;justify-content:space-between;gap:20px;align-items:center}.brand{font-size:.77rem;letter-spacing:.14em;text-transform:uppercase;color:#b6dcdf;font-weight:800}.title{font-size:clamp(1.55rem,4vw,2.5rem);margin:12px 0 8px;line-height:1.2}.desc{color:#d3e5e7;margin:0;max-width:60ch}.instance{font-size:.82rem;color:#e3f5f5;border:1px solid #a5d4da80;border-radius:20px;padding:6px 12px;white-space:nowrap}main{margin-top:-16px}.toolbar{display:flex;justify-content:space-between;gap:14px;align-items:center;background:white;border:1px solid var(--line);padding:18px 20px;border-radius:14px;box-shadow:0 5px 17px #2144500d;flex-wrap:wrap}.summary{font-weight:650}.small{font-size:.84rem;color:var(--muted)}.buttons{display:flex;gap:10px;align-items:center;flex-wrap:wrap}button{font:inherit;cursor:pointer;border:1px solid #bfd5da;border-radius:9px;background:white;padding:9px 13px;color:var(--ink);font-weight:650;transition:background .15s}button:hover:not(:disabled){background:#e9f5f5}button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid #2f9ca7;outline-offset:2px}button.primary{background:var(--accent);color:white;border-color:var(--accent)}button.primary:hover:not(:disabled){background:var(--dark)}button:disabled{opacity:.42;cursor:not-allowed}a.back{color:var(--dark);font-size:.9rem;text-decoration:none}.notice{margin:18px 0;border-left:4px solid #0a8190;border-radius:8px;background:#e6f3f4;padding:12px 15px;white-space:pre-wrap}.notice.error{border-color:var(--bad);background:#fff1f1;color:#8d2424}.notice[hidden]{display:none}.section-top{margin:30px 0 12px;display:flex;justify-content:space-between;align-items:baseline;gap:12px}h2{font-size:1.34rem;margin:0}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.card{min-width:0;background:white;border:1px solid var(--line);border-radius:14px;box-shadow:0 3px 13px #25445108;padding:20px;display:flex;flex-direction:column;gap:14px}.card.offline{background:#f9fafb}.card-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}.device-name{font-size:1.13rem;font-weight:750;overflow-wrap:anywhere;margin:0}.device-id{font-size:.73rem;line-height:1.3;color:var(--muted);margin-top:4px}.pill{border-radius:25px;font-size:.78rem;padding:4px 10px;background:var(--soft);color:#046a62;font-weight:750;white-space:nowrap}.pill.offline{background:#edeff1;color:#666}.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.stat{background:#f5f8f9;border-radius:9px;padding:10px}.stat-label{color:var(--muted);font-size:.76rem;display:block}.stat-value{font-size:1.12rem;font-weight:750;display:block}.controls{border-top:1px solid var(--line);padding-top:14px;margin-top:auto}.controls-label{font-size:.82rem;font-weight:750;color:#425b69;margin-bottom:7px}.setpoint-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.setpoint-controls input{font-size:1rem;color:var(--ink);border:1px solid #b8cbd1;background:white;border-radius:9px;padding:10px;width:104px}.quick{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}.help{font-size:.77rem;color:var(--muted);margin:9px 0 0}.placeholder{padding:25px 20px;background:white;border:1px solid var(--line);border-radius:12px;color:var(--muted)}.footer{margin-top:35px;color:var(--muted);font-size:.78rem;border-top:1px solid var(--line);padding-top:16px}#updating{font-size:.78rem;color:var(--muted)}@media(max-width:760px){.shell{padding-left:15px;padding-right:15px}.grid{grid-template-columns:1fr}.toolbar{align-items:stretch}.top{align-items:flex-start}.instance{font-size:.69rem}.card{padding:16px}}
+</style></head>
+<body>
+<header><div class="shell"><div class="top"><div class="brand">Home automation · AVM</div><div class="instance">Symcon instance {{INSTANCE}}</div></div>
+<h1 class="title">FRITZ! Smart Home</h1><p class="desc">Control sockets and radiator thermostats. Changes are secured by your SecretsManager passkey session.</p></div></header>
+<main class="shell">
+<div class="toolbar"><div><div class="summary" id="summary">Loading devices…</div><div class="small" id="updated">Please wait</div></div>
+<div class="buttons"><a class="back" href="javascript:history.back()" id="back">← Back to portal</a><button id="refresh" type="button">↻ Refresh</button></div></div>
+<div id="notice" class="notice" hidden role="status" aria-live="polite"></div>
+<section aria-labelledby="thermHeading"><div class="section-top"><h2 id="thermHeading">Thermostats</h2><span class="small" id="thermCount"></span></div><div class="grid" id="thermostats"><div class="placeholder">Loading thermostats…</div></div></section>
+<section aria-labelledby="socketHeading"><div class="section-top"><h2 id="socketHeading">Smart sockets</h2><span class="small" id="socketCount"></span></div><div class="grid" id="sockets"><div class="placeholder">Loading sockets…</div></div></section>
+<footer class="footer">Instance {{INSTANCE}} · The displayed temperatures and switching states come from FRITZ!Box AHA. A confirmed thermostat setpoint does not verify physical valve motion. All actions require an authenticated HTTPS session.</footer>
+</main>
+<script nonce="{{NONCE}}">
+'use strict';
+const PATH='{{PATH}}', CSRF='{{CSRF}}';
+const $=id=>document.getElementById(id);
+const show=(message,error=false)=>{const node=$('notice');node.hidden=false;node.className='notice'+(error?' error':'');node.textContent=message;};
+const clear=()=>{$('notice').hidden=true;};
+const element=(tag,cls,text)=>{const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=String(text);return el;};
+const metric=(label,value)=>{const container=element('div','stat');container.append(element('span','stat-label',label),element('strong','stat-value',value===null||value===undefined?'—':value));return container;};
+const val=(x,suffix='')=>x===null||x===undefined?'—':String(x)+suffix;
+const wait=(b,on)=>{b.disabled=on;};
+async function api(body){
+ const options={credentials:'same-origin',cache:'no-store'};
+ if(body!==undefined){options.method='POST';options.headers={'Content-Type':'application/json','X-Fritz-CSRF':CSRF};options.body=JSON.stringify(body);}
+ const response=await fetch(body===undefined?PATH+'?view=state':PATH,options);
+ let data;try{data=await response.json();}catch(e){throw new Error('Unexpected server reply. Reopen the page if your passkey session expired.');}
+ if(!response.ok)throw new Error(data.error||('HTTP '+response.status));
+ return data;
+}
+async function command(button,payload,success){
+ if(button.disabled)return;
+ wait(button,true);show('Sending command…');
+ try {await api(payload);show(success);await load(false);}
+ catch(e){show(e.message,true);}
+ finally{wait(button,false);}
+}
+const control=(caption,cls,callback)=>{const b=element('button',cls,caption);b.type='button';b.addEventListener('click',()=>callback(b));return b;};
+function cardBase(d){
+ const card=element('article','card'+(!d.online?' offline':''));
+ const header=element('div','card-head'),info=element('div');
+ info.append(element('h3','device-name',d.name),element('div','device-id',d.ain));
+ header.append(info,element('span','pill'+(!d.online?' offline':''),d.online?'Online':'Offline'));
+ card.append(header);return card;
+}
+function thermostat(d){
+ const card=cardBase(d), stats=element('div','stats');
+ stats.append(
+  metric('Actual',val(d.actual,' °C')),
+  metric('Target',d.mode==='off'?'Heating off':d.mode==='max'?'Maximum heat':val(d.target,' °C')),
+  metric('Battery',val(d.battery,' %')),
+  metric('Window',d.windowOpen?'Open':'Closed')
+ );
+ card.append(stats);
+ const controls=element('div','controls'),label=element('div','controls-label','Set target temperature');
+ const row=element('div','setpoint-controls'),number=element('input');
+ number.type='number';number.min='8';number.max='28';number.step='0.5';number.inputMode='decimal';
+ number.setAttribute('aria-label','Target temperature for '+d.name);
+ number.value=(d.target!==null && d.target!==undefined?d.target:(d.comfort??21));
+ number.disabled=!d.online;
+ const set=control('Set °C','primary',b=>{
+  const n=Number(number.value);
+  if(!Number.isFinite(n)||n<8||n>28||Math.abs(n*2-Math.round(n*2))>1e-9){show('Use a value from 8 to 28 °C in 0.5 °C steps.',true);return;}
+  command(b,{action:'setpoint',ain:d.ain,value:n},d.name+': target set to '+n+' °C.');
+ });set.disabled=!d.online;row.append(number,set);
+ const quick=element('div','quick');
+ for(const [title,mode] of [['Heating off','off'],['Maximum heat','max'],['Comfort','comfort']]){
+  const b=control(title,'',button=>command(button,{action:'mode',ain:d.ain,value:mode},d.name+': '+title+' confirmed.'));
+  if(!d.online || (mode==='comfort'&&d.comfort===null))b.disabled=true;quick.append(b);
+ }
+ controls.append(label,row,quick,element('p','help','Comfort applies the stored comfort temperature; it does not restore an AVM weekly schedule.'));
+ card.append(controls);return card;
+}
+function socket(d){
+ const card=cardBase(d),stats=element('div','stats');
+ stats.append(metric('Switch',d.switch===null?'Unknown':d.switch?'ON':'OFF'),
+   metric('Power',val(d.powerW,' W')),metric('Energy',val(d.energyKWh,' kWh')),
+   metric('Temperature',val(d.temperature,' °C')));
+ card.append(stats);const controls=element('div','controls');controls.append(element('div','controls-label','Power'));
+ const b=control(d.switch?'Switch OFF':'Switch ON','primary',button=>command(button,{action:'switch',ain:d.ain,value:!d.switch},d.name+': new state confirmed.'));
+ b.disabled=!d.online||d.switch===null;controls.append(b);card.append(controls);return card;
+}
+async function load(notify=true){
+ $('refresh').disabled=true;$('updated').textContent='Refreshing…';
+ try{
+  const data=await api(),devices=Array.isArray(data.devices)?data.devices:[];
+  const th=devices.filter(d=>d.type==='thermostat'),so=devices.filter(d=>d.type==='socket');
+  for(const [id,list,create] of [['thermostats',th,thermostat],['sockets',so,socket]]){
+   const region=$(id);region.replaceChildren();
+   if(list.length===0)region.append(element('div','placeholder','No '+(id==='thermostats'?'thermostats':'smart sockets')+' discovered.'));
+   else for(const device of list)region.append(create(device));
+  }
+  $('thermCount').textContent=th.length+' detected';$('socketCount').textContent=so.length+' detected';
+  $('summary').textContent=devices.length+' connected device'+(devices.length===1?'':'s')+' · '+th.length+' thermostats · '+so.length+' sockets';
+  $('updated').textContent='Last refreshed '+new Date().toLocaleTimeString();
+  if(notify)clear();
+ }catch(e){show(e.message,true);$('summary').textContent='Device status unavailable';$('updated').textContent='Check authentication and connection';}
+ finally{$('refresh').disabled=false;}
+}
+$('refresh').addEventListener('click',()=>load(true));
+$('back').addEventListener('click',event=>{if(history.length<=1){event.preventDefault();location.assign('/');}});
+load();
+</script></body></html>
