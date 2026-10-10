@@ -268,6 +268,67 @@ class FritzSmartHome extends IPSModule
         $this->Poll();
     }
 
+    /**
+     * Set the target temperature of all online HKR thermostats on this FRITZ!Box.
+     * Call: FSH_SetAllThermostatsTemperature($instanceID, 21.0)
+     * Returns per-device results as JSON.
+     */
+    public function SetAllThermostatsTemperature(float $temperature): string
+    {
+        if (!is_finite($temperature) || $temperature < 8 || $temperature > 28
+            || abs($temperature * 2 - round($temperature * 2)) > 0.00001) {
+            throw new InvalidArgumentException('Use 8–28 °C in half-degree increments.');
+        }
+
+        $report = ['temperature' => $temperature, 'successful' => [], 'failed' => []];
+        $credentials = $this->credentials();
+        if ($credentials === null) {
+            $report['error'] = 'Credentials unavailable';
+            return json_encode($report, JSON_UNESCAPED_UNICODE);
+        }
+
+        $sid = $this->login($credentials);
+        if ($sid === null) {
+            $report['error'] = 'Login failed';
+            return json_encode($report, JSON_UNESCAPED_UNICODE);
+        }
+
+        $raw = $this->aha($credentials, $sid, 'getdevicelistinfos');
+        $xml = $raw === null ? false : @simplexml_load_string($raw);
+        if ($xml === false) {
+            $this->error('Thermostat discovery failed');
+            $report['error'] = 'Thermostat discovery failed';
+            return json_encode($report, JSON_UNESCAPED_UNICODE);
+        }
+
+        $target = (int)round($temperature * 2);
+        foreach ($xml->device as $device) {
+            if (!isset($device->hkr)) continue;
+            $ain = trim((string)$device['identifier']);
+            if ($ain === '') continue;
+            $name = trim((string)$device->name) ?: $ain;
+            if ((string)$device->present !== '1') {
+                $report['failed'][] = ['name' => $name, 'reason' => 'Offline'];
+                continue;
+            }
+            $reply = $this->aha($credentials, $sid, 'sethkrtsoll', $ain, $target);
+            if ($reply === null) {
+                $report['failed'][] = ['name' => $name, 'reason' => 'Command failed'];
+                continue;
+            }
+            $readback = $this->aha($credentials, $sid, 'gethkrtsoll', $ain);
+            if ($readback !== null && is_numeric($readback) && (int)$readback === $target) {
+                $report['successful'][] = $name;
+                $this->setField($ain, 'Setpoint', $temperature);
+            } else {
+                $report['failed'][] = ['name' => $name, 'reason' => 'Setpoint not confirmed'];
+            }
+        }
+        $this->logDebug('Bulk temperature ' . $temperature . ' C: ' . count($report['successful'])
+            . ' succeeded, ' . count($report['failed']) . ' failed');
+        return json_encode($report, JSON_UNESCAPED_UNICODE);
+    }
+
     public function Poll(): void
     {
         if (!$this->ReadPropertyBoolean('Enabled')) return;
