@@ -280,33 +280,59 @@ class FritzSmartHome extends IPSModule
             throw new InvalidArgumentException('Use 8–28 °C in half-degree increments.');
         }
 
-        $report = ['temperature' => $temperature, 'successful' => [], 'failed' => []];
+        $started = microtime(true);
+        $report = [
+            'instanceID' => $this->InstanceID,
+            'timestamp' => date('c'),
+            'temperature' => $temperature,
+            'boxHost' => null,
+            'status' => 'error',
+            'stage' => 'credentials',
+            'totalDevicesDiscovered' => 0,
+            'thermostatsDiscovered' => 0,
+            'thermostatsOnline' => 0,
+            'thermostatsOffline' => 0,
+            'discovered' => [],
+            'successful' => [],
+            'failed' => [],
+            'details' => []
+        ];
         $credentials = $this->credentials();
         if ($credentials === null) {
             $report['error'] = 'Credentials unavailable';
-            return json_encode($report, JSON_UNESCAPED_UNICODE);
+            return $this->completeBulkReport($report, $started);
         }
 
+        $report['boxHost'] = $credentials['host'];
+        $report['stage'] = 'login';
         $sid = $this->login($credentials);
         if ($sid === null) {
             $report['error'] = 'Login failed';
-            return json_encode($report, JSON_UNESCAPED_UNICODE);
+            return $this->completeBulkReport($report, $started);
         }
 
+        $report['stage'] = 'discovery';
         $raw = $this->aha($credentials, $sid, 'getdevicelistinfos');
         $xml = $raw === null ? false : @simplexml_load_string($raw);
         if ($xml === false) {
             $this->error('Thermostat discovery failed');
             $report['error'] = 'Thermostat discovery failed';
-            return json_encode($report, JSON_UNESCAPED_UNICODE);
+            return $this->completeBulkReport($report, $started);
         }
 
+        $report['totalDevicesDiscovered'] = count($xml->device);
+        $report['stage'] = 'commands';
         $target = (int)round($temperature * 2);
         foreach ($xml->device as $device) {
             if (!isset($device->hkr)) continue;
             $ain = trim((string)$device['identifier']);
             if ($ain === '') continue;
             $name = trim((string)$device->name) ?: $ain;
+            $online = (string)$device->present === '1';
+            $report['thermostatsDiscovered']++;
+            $report['discovered'][] = ['name'=>$name, 'ain'=>$ain, 'online'=>$online];
+            if ($online) $report['thermostatsOnline']++;
+            else $report['thermostatsOffline']++;
             if ((string)$device->present !== '1') {
                 $report['failed'][] = ['name' => $name, 'reason' => 'Offline'];
                 continue;
@@ -324,9 +350,21 @@ class FritzSmartHome extends IPSModule
                 $report['failed'][] = ['name' => $name, 'reason' => 'Setpoint not confirmed'];
             }
         }
+        $report['stage'] = 'complete';
+        $report['status'] = count($report['failed']) > 0 ? 'partial'
+            : ($report['thermostatsDiscovered'] === 0 ? 'no_thermostats' : 'success');
         $this->logDebug('Bulk temperature ' . $temperature . ' C: ' . count($report['successful'])
             . ' succeeded, ' . count($report['failed']) . ' failed');
-        return json_encode($report, JSON_UNESCAPED_UNICODE);
+        return $this->completeBulkReport($report, $started);
+    }
+
+    private function completeBulkReport(array $report, float $started): string
+    {
+        $report['successfulCount'] = count($report['successful']);
+        $report['failedCount'] = count($report['failed']);
+        $report['durationMs'] = round((microtime(true) - $started) * 1000);
+        $json = json_encode($report, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        return $json === false ? '{"status":"error","error":"JSON encoding failed"}' : $json;
     }
 
     public function Poll(): void
