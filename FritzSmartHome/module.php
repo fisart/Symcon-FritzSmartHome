@@ -1,8 +1,11 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/Webhook.php';
+
 class FritzSmartHome extends IPSModule
 {
+    use FritzSmartHomeWebhook;
     public function Create(): void
     {
         parent::Create();
@@ -11,6 +14,12 @@ class FritzSmartHome extends IPSModule
         $this->RegisterPropertyInteger('PollSeconds', 60);
         $this->RegisterPropertyBoolean('Enabled', true);
         $this->RegisterPropertyBoolean('DebugEnabled', false);
+        $this->RegisterPropertyBoolean('WebEnabled', true);
+        $this->RegisterPropertyInteger('VaultInstanceID', 0);
+        $this->RegisterAttributeString('WebCSRFKey', bin2hex(random_bytes(32)));
+        $this->RegisterVariableString('WebPath', 'Control page webhook path', '', 996);
+        $this->RegisterTimer('HookSetup', 0, 'FSH_SetupHook($_IPS["TARGET"]);');
+        $this->RegisterMessage(0, 10103);
         $this->RegisterTimer('Poll', 60000, 'FSH_Poll($_IPS["TARGET"]);');
         $this->RegisterAttributeString('LastBulkThermostats', '{}');
         $this->RegisterVariableString('LastBulkReport', 'Last Bulk Temperature Report (JSON)', '', 997);
@@ -21,8 +30,17 @@ class FritzSmartHome extends IPSModule
     public function ApplyChanges(): void
     {
         parent::ApplyChanges();
+        $this->SetValue('WebPath', $this->ReadPropertyBoolean('WebEnabled') ? $this->webPath() : 'Web page disabled');
+        $this->SetTimerInterval('HookSetup', IPS_GetKernelRunlevel() === 10103 ? 100 : 0);
         $this->SetTimerInterval('Poll', $this->ReadPropertyBoolean('Enabled')
             ? max(15, $this->ReadPropertyInteger('PollSeconds')) * 1000 : 0);
+    }
+
+    public function MessageSink($TimeStamp, $SenderID, $Message, $Data): void
+    {
+        if ($SenderID === 0 && $Message === 10103) {
+            $this->SetTimerInterval('HookSetup', 100);
+        }
     }
 
     public function GetConfigurationForm(): string
@@ -33,10 +51,15 @@ class FritzSmartHome extends IPSModule
                 ['type'=>'ValidationTextBox','name'=>'SecretKey','caption'=>'SecretsManager Key'],
                 ['type'=>'NumberSpinner','name'=>'PollSeconds','caption'=>'Polling (seconds)'],
                 ['type'=>'CheckBox','name'=>'Enabled','caption'=>'Enabled'],
-                ['type'=>'CheckBox','name'=>'DebugEnabled','caption'=>'Debug']
+                ['type'=>'CheckBox','name'=>'DebugEnabled','caption'=>'Debug'],
+                ['type'=>'CheckBox','name'=>'WebEnabled','caption'=>'Enable passkey-protected control page'],
+                ['type'=>'SelectInstance','name'=>'VaultInstanceID','caption'=>'SecretsManager passkey portal (0 = auto)', 'validModules'=>['{7C5A3841-3F7B-4D2A-9E1C-5B6D8F9A0E12}']],
+                ['type'=>'Label','caption'=>'Open the Control page webhook path on the SecretsManager HTTPS portal origin. The vault must have PortalEnabled=true.'],
+                ['type'=>'ValidationTextBox','name'=>'WebPath','caption'=>'Control page URL path','value'=>$this->webPath(),'enabled'=>false]
             ],
             'actions' => [
-                ['type'=>'Button','caption'=>'Discover now','onClick'=>'FSH_Poll($id);']
+                ['type'=>'Button','caption'=>'Discover now','onClick'=>'FSH_Poll($id);'],
+                ['type'=>'Button','caption'=>'Repair / register control webhook','onClick'=>'FSH_SetupHook($id);']
             ]
         ], JSON_UNESCAPED_SLASHES);
     }
