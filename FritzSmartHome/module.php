@@ -333,22 +333,54 @@ class FritzSmartHome extends IPSModule
             $report['discovered'][] = ['name'=>$name, 'ain'=>$ain, 'online'=>$online];
             if ($online) $report['thermostatsOnline']++;
             else $report['thermostatsOffline']++;
-            if ((string)$device->present !== '1') {
-                $report['failed'][] = ['name' => $name, 'reason' => 'Offline'];
-                continue;
-            }
-            $reply = $this->aha($credentials, $sid, 'sethkrtsoll', $ain, $target);
-            if ($reply === null) {
-                $report['failed'][] = ['name' => $name, 'reason' => 'Command failed'];
-                continue;
-            }
-            $readback = $this->aha($credentials, $sid, 'gethkrtsoll', $ain);
-            if ($readback !== null && is_numeric($readback) && (int)$readback === $target) {
-                $report['successful'][] = $name;
-                $this->setField($ain, 'Setpoint', $temperature);
+
+            $deviceStart = microtime(true);
+            $detail = [
+                'name' => $name, 'ain' => $ain, 'online' => $online,
+                'commandResponse' => null, 'readbackAttempts' => [],
+                'confirmed' => false, 'reason' => null
+            ];
+            if (!$online) {
+                $detail['reason'] = 'offline';
             } else {
-                $report['failed'][] = ['name' => $name, 'reason' => 'Setpoint not confirmed'];
+                $reply = $this->aha($credentials, $sid, 'sethkrtsoll', $ain, $target);
+                $detail['commandResponse'] = $reply === null ? null : substr($reply, 0, 40);
+                if ($reply === null) {
+                    $detail['reason'] = 'command_failed';
+                } else {
+                    // Allow delayed FRITZ!Box readback; do not repeat the write.
+                    foreach ([0, 350000, 750000] as $delayMicroseconds) {
+                        if ($delayMicroseconds > 0) usleep($delayMicroseconds);
+                        $readback = $this->aha($credentials, $sid, 'gethkrtsoll', $ain);
+                        $matched = $readback !== null && is_numeric($readback)
+                            && (int)$readback === $target;
+                        $detail['readbackAttempts'][] = [
+                            'value' => $readback === null ? null : substr($readback, 0, 40),
+                            'matched' => $matched
+                        ];
+                        if ($matched) {
+                            $detail['confirmed'] = true;
+                            $this->setField($ain, 'Setpoint', $temperature);
+                            break;
+                        }
+                    }
+                    if (!$detail['confirmed']) {
+                        $available = 0;
+                        foreach ($detail['readbackAttempts'] as $attempt) {
+                            if ($attempt['value'] !== null) $available++;
+                        }
+                        $detail['reason'] = $available === 0
+                            ? 'readback_unavailable' : 'readback_mismatch';
+                    }
+                }
             }
+            $detail['durationMs'] = round((microtime(true) - $deviceStart) * 1000);
+            if ($detail['confirmed']) $report['successful'][] = $name;
+            else $report['failed'][] = ['name'=>$name, 'ain'=>$ain, 'reason'=>$detail['reason']];
+            $report['details'][] = $detail;
+            $this->logDebug('Bulk thermostat ' . $name . ': ' .
+                ($detail['confirmed'] ? 'confirmed' : $detail['reason']) . ', ' .
+                count($detail['readbackAttempts']) . ' read(s)');
         }
         $report['stage'] = 'complete';
         $report['status'] = count($report['failed']) > 0 ? 'partial'
