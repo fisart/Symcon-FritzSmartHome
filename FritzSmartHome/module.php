@@ -153,19 +153,82 @@ class FritzSmartHome extends IPSModule
         return 'D'.substr(sha1($ain), 0, 12).'_'.$suffix;
     }
 
+    // One stable Dummy instance per AVM AIN; device renames never alter identities.
+    private function deviceParent(string $ain, string $name): int
+    {
+        $ident = 'Device_' . substr(sha1($ain), 0, 16);
+        $dummy = @IPS_GetObjectIDByIdent($ident, $this->InstanceID);
+        if ($dummy === false) {
+            $dummy = IPS_CreateInstance('{485D0419-BE97-4548-AA9C-C083EB82E61E}');
+            IPS_SetParent($dummy, $this->InstanceID);
+            IPS_SetIdent($dummy, $ident);
+            IPS_ApplyChanges($dummy);
+            $this->logDebug('Created device Dummy instance for ' . $name);
+        }
+        if (IPS_GetName($dummy) !== $name) {
+            IPS_SetName($dummy, $name);
+        }
+        return $dummy;
+    }
+
+    // The action script routes button / slider changes back to this module instance.
+    private function actionScript(): int
+    {
+        $ident = 'FritzSmartHomeAction';
+        $id = @IPS_GetObjectIDByIdent($ident, $this->InstanceID);
+        if ($id === false) {
+            $id = IPS_CreateScript(0);
+            IPS_SetParent($id, $this->InstanceID);
+            IPS_SetIdent($id, $ident);
+            IPS_SetName($id, 'FRITZ! Smart Home Action');
+            IPS_SetScriptContent($id, '<?php' . "\n" .
+                'if (isset($_IPS["VARIABLE"], $_IPS["VALUE"])) {' . "\n" .
+                '    $variableID = (int)$_IPS["VARIABLE"];' . "\n" .
+                '    $dummyID = IPS_GetParent($variableID);' . "\n" .
+                '    $moduleID = IPS_GetParent($dummyID);' . "\n" .
+                '    IPS_RequestAction($moduleID, IPS_GetObject($variableID)["ObjectIdent"], $_IPS["VALUE"]);' . "\n" .
+                '}' . "\n");
+        }
+        IPS_SetHidden($id, true);
+        return $id;
+    }
+
     private function registerField(string $ain, string $name, string $suffix, string $label, string $type, bool $action = false): void
     {
-        $id = $this->vid($ain, $suffix);
-        $caption = $name.' – '.$label;
-        if ($type === 'bool') $this->RegisterVariableBoolean($id, $caption, '~Switch');
-        elseif ($type === 'int') $this->RegisterVariableInteger($id, $caption);
-        else $this->RegisterVariableFloat($id, $caption);
-        if ($action) $this->EnableAction($id);
+        $parent = $this->deviceParent($ain, $name);
+        $ident = $this->vid($ain, $suffix);
+        $variableID = @IPS_GetObjectIDByIdent($ident, $parent);
+        if ($variableID === false) {
+            // Migrate already-created module-root variables without losing IDs / archives.
+            $legacyID = @IPS_GetObjectIDByIdent($ident, $this->InstanceID);
+            if ($legacyID !== false && IPS_GetObject($legacyID)['ObjectType'] === 2) {
+                IPS_SetParent($legacyID, $parent);
+                $variableID = $legacyID;
+            } else {
+                $typeCode = $type === 'bool' ? 0 : ($type === 'int' ? 1 : 2);
+                $variableID = IPS_CreateVariable($typeCode);
+                IPS_SetParent($variableID, $parent);
+                IPS_SetIdent($variableID, $ident);
+            }
+        }
+        $caption = $label;
+        if (IPS_GetName($variableID) !== $caption) {
+            IPS_SetName($variableID, $caption);
+        }
+        if ($type === 'bool') {
+            IPS_SetVariableCustomProfile($variableID, '~Switch');
+        }
+        if ($action) {
+            IPS_SetVariableCustomAction($variableID, $this->actionScript());
+        }
     }
 
     private function setField(string $ain, string $suffix, $value): void
     {
-        $this->SetValue($this->vid($ain, $suffix), $value);
+        $parent = @IPS_GetObjectIDByIdent('Device_' . substr(sha1($ain), 0, 16), $this->InstanceID);
+        if ($parent === false) return;
+        $variableID = @IPS_GetObjectIDByIdent($this->vid($ain, $suffix), $parent);
+        if ($variableID !== false) SetValue($variableID, $value);
     }
 
     public function RequestAction($Ident, $Value): void
