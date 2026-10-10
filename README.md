@@ -6,7 +6,7 @@ Module for FRITZ!DECT sockets and FRITZ!Smart Thermo 302 using AVM AHA HTTP API.
 
 Install this repository in IP-Symcon Module Control, create one **FRITZ! Smart Home** instance per FRITZ!Box. Configure **SecretsManager Instance ID** (default `47118`) and **SecretsManager Key** (default `FB-DSL`). The SecretsManager's `SEC_GetSecret($instanceId, $key)` must return JSON with `IP`, `User`, and `PW`. Example *without credentials*: `{"IP":"192.168.20.1","User":"symcon","PW":"<secret>"}`. Use a different key for every box. No credentials are stored in instance properties or logs.
 
-Set polling interval and enable the instance. Click **Discover now** or wait for the next poll. Device categories use stable AIN-derived identifiers; visible names track FRITZ!Box names.
+Set polling interval and enable the instance. Click **Discover now** or wait for the next poll. Every discovered device gets a dedicated **Dummy instance** below the FRITZ! Smart Home module instance. The Dummy is named exactly as in the FRITZ!Box. Socket and thermostat variables appear beneath it and use stable AIN-derived identifiers; AVM device renames update the Dummy name without creating new instances. Existing variables directly below the module are moved to their Dummy instances while retaining their object IDs and archive history. An internal hidden action script forwards switching and thermostat changes to the module.
 
 ### Sockets
 Switch state, power (W), energy (kWh) and device temperature when supplied by the API.
