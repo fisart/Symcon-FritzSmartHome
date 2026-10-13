@@ -14,6 +14,8 @@ jobs:
           python3 -m json.tool FritzSmartHome/module.json > /dev/null
       - name: Lint PHP
         run: find FritzSmartHome -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Verify battery field parsing
+        run: php tests/battery_parsing.php
       - name: Check embedded dashboard JavaScript
         run: |
           python3 - <<'PY'
