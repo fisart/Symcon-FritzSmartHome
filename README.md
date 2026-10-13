@@ -55,3 +55,15 @@ The page includes:
 The accompanying `fisart/MyAlarmSystem` AlarmPortal update automatically shows each registered FRITZ! module in a dedicated **Smart Home** section. Update **both** repositories. No manual `AdditionalPages` entry is required. Refresh the Alarm Portal after installing the modules.
 
 **Deployment note:** This is a code-level integration; test authentication and physical switching in your Symcon installation before relying on the page during travel.
+
+## AVM thermostat battery reporting
+
+The `getdevicelistinfos` AHA XML describes battery percentage (`0`–`100`) and low-battery status as optional child elements of `<device>`. Some FRITZ!OS revisions also place these under `<hkr>`. The module and HTTPS device dashboard now read **device-level battery first** and fall back to **HKR-level battery** when the former is absent or invalid.
+
+- A genuine `<battery>100</battery>` is displayed as **100%**.
+- An explicit `<battery>0</battery>` is displayed as **0%**.
+- A missing/empty/invalid value is **unknown**, never inferred as 0% or 100% from `batterylow`.
+- `Battery reading available` below the thermostat Dummy is `true` only when the current poll returned a valid percentage. When unavailable, the existing numeric battery value is retained as the **last received value**, and the dashboard shows `—` rather than a misleading 0%.
+- The `Battery low` Boolean is updated only when a valid explicit low-battery flag exists. `DebugEnabled` records whether the percentage came from the `device` or `hkr` element.
+
+Regression scenarios reside in `tests/battery_parsing.php` and are executed by GitHub Actions alongside PHP lint. After updating the module, run `FSH_Poll(14706)` / `FSH_Poll(17688)` or await normal polling, then inspect `Battery %` and `Battery reading available` below each thermostat.
