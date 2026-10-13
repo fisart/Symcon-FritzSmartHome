@@ -141,8 +141,10 @@ trait FritzSmartHomeWebhook
                 }
                 $tsoll = (int)$h->tsoll;
                 $item['mode'] = $tsoll === 253 ? 'off' : ($tsoll === 254 ? 'max' : 'setpoint');
-                $item['battery'] = is_numeric((string)$h->battery) ? (int)$h->battery : null;
-                $item['batteryLow'] = (string)$h->batterylow === '1';
+                $battery = $this->batteryReading($device);
+                $item['battery'] = $battery['percent'];
+                $item['batterySource'] = $battery['source'];
+                $item['batteryLow'] = $battery['low'];
                 $item['windowOpen'] = (string)$h->windowopenactiv === '1';
             } else {
                 $state = (string)$device->switch->state;
