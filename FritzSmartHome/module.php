@@ -173,6 +173,45 @@ class FritzSmartHome extends IPSModule
         return $r;
     }
 
+    /**
+     * AVM AHA getdevicelistinfos reports optional battery percentage and
+     * batterylow directly under <device>; some FRITZ!OS versions also expose
+     * the values inside <hkr>. Prefer the device-level value when valid.
+     * Missing / invalid values must never be interpreted as zero percent.
+     *
+     * @return array{percent:?int,source:?string,low:?bool}
+     */
+    private function batteryReading(SimpleXMLElement $device): array
+    {
+        $hkr = isset($device->hkr) ? $device->hkr : null;
+        $rawBattery = [
+            'device' => isset($device->battery) ? trim((string)$device->battery) : '',
+            'hkr' => $hkr !== null && isset($hkr->battery) ? trim((string)$hkr->battery) : ''
+        ];
+        $percent = null;
+        $source = null;
+        foreach ($rawBattery as $location => $raw) {
+            if ($raw === '' || !ctype_digit($raw)) continue;
+            $value = (int)$raw;
+            if ($value < 0 || $value > 100) continue;
+            $percent = $value;
+            $source = $location;
+            break;
+        }
+        $rawLow = [
+            isset($device->batterylow) ? trim((string)$device->batterylow) : '',
+            $hkr !== null && isset($hkr->batterylow) ? trim((string)$hkr->batterylow) : ''
+        ];
+        $low = null;
+        foreach ($rawLow as $raw) {
+            if ($raw === '0' || $raw === '1') {
+                $low = ($raw === '1');
+                break;
+            }
+        }
+        return ['percent' => $percent, 'source' => $source, 'low' => $low];
+    }
+
     private function vid(string $ain, string $suffix): string
     {
         return 'D'.substr(sha1($ain), 0, 12).'_'.$suffix;
@@ -493,7 +532,8 @@ class FritzSmartHome extends IPSModule
                 foreach ([
                     ['Actual','Actual °C','float',false], ['Setpoint','Target °C','float',true],
                     ['Comfort','Comfort °C','float',false], ['Economy','Economy °C','float',false],
-                    ['Battery','Battery %','int',false], ['BatteryLow','Battery low','bool',false],
+                    ['Battery','Battery %','int',false], ['BatteryAvailable','Battery reading available','bool',false],
+                    ['BatteryLow','Battery low','bool',false],
                     ['WindowOpen','Window open','bool',false], ['Boost','Boost active','bool',false],
                     ['Mode','Mode (0=normal, 1=off, 2=on)','int',true]
                 ] as [$s,$n,$t,$a]) $this->registerField($ain,$name,$s,$n,$t,$a);
@@ -509,8 +549,16 @@ class FritzSmartHome extends IPSModule
                 }
                 $target = (string)$h->tsoll;
                 if (is_numeric($target)) $this->setField($ain,'Mode',(int)$target === 253 ? 1 : ((int)$target === 254 ? 2 : 0));
-                if (is_numeric((string)$h->battery)) $this->setField($ain,'Battery',(int)$h->battery);
-                foreach (['batterylow'=>'BatteryLow','windowopenactiv'=>'WindowOpen','boostactive'=>'Boost'] as $tag=>$field) {
+                $battery = $this->batteryReading($dev);
+                $this->setField($ain, 'BatteryAvailable', $battery['percent'] !== null);
+                if ($battery['percent'] !== null) {
+                    $this->setField($ain, 'Battery', $battery['percent']);
+                    $this->logDebug('Battery ' . $name . ': ' . $battery['percent'] . '% (AHA ' . $battery['source'] . ')');
+                } else {
+                    $this->logDebug('Battery ' . $name . ': percentage not provided by AHA (unknown, not 0%)');
+                }
+                if ($battery['low'] !== null) $this->setField($ain, 'BatteryLow', $battery['low']);
+                foreach (['windowopenactiv'=>'WindowOpen','boostactive'=>'Boost'] as $tag=>$field) {
                     $v = (string)$h->{$tag};
                     if ($v === '0' || $v === '1') $this->setField($ain,$field,$v === '1');
                 }
