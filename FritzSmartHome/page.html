@@ -10,7 +10,7 @@
 <h1 class="title">FRITZ! Smart Home</h1><p class="desc">Control sockets and radiator thermostats. Changes are secured by your SecretsManager passkey session.</p></div></header>
 <main class="shell">
 <div class="toolbar"><div><div class="summary" id="summary">Loading devices…</div><div class="small" id="updated">Please wait</div></div>
-<div class="buttons"><a class="back" href="#" id="back">← Back to portal</a><button id="refresh" type="button">↻ Refresh</button></div></div>
+<div class="buttons"><a class="back" href="{{PORTAL}}" target="_top" id="back">← System portal</a><button id="refresh" type="button">↻ Refresh</button></div></div>
 <div id="notice" class="notice" hidden role="status" aria-live="polite"></div>
 <div class="bulk"><div><div class="bulk-title">Set all thermostat targets</div><div class="bulk-help">Apply the same temperature to every online thermostat on this FRITZ!Box instance. Other FRITZ!Boxes remain unchanged.</div></div><div class="bulk-action"><label for="bulkTemperature">°C</label><input id="bulkTemperature" type="number" min="8" max="28" step="0.5" value="21"><button id="bulkButton" class="primary" type="button">Apply to all</button></div></div>
 <section aria-labelledby="thermHeading"><div class="section-top"><h2 id="thermHeading">Thermostats</h2><span class="small" id="thermCount"></span></div><div class="grid" id="thermostats"><div class="placeholder">Loading thermostats…</div></div></section>
@@ -120,6 +120,6 @@ $('bulkButton').addEventListener('click',async ()=>{
  }catch(e){show(e.message,true);}finally{b.disabled=false;}
 });
 
-$('back').addEventListener('click',event=>{if(history.length<=1){event.preventDefault();location.assign('/');}});
+if(!$('back').getAttribute('href')){$('back').removeAttribute('href');$('back').setAttribute('aria-disabled','true');$('back').title='No unique registered System Portal was found.';}
 load();
 </script></body></html>

@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/../libs/SystemPortalNavigation.php';
+
 
 /** HTTPS-only, passkey-protected FRITZ! device web console. */
 trait FritzSmartHomeWebhook
@@ -322,6 +324,7 @@ trait FritzSmartHomeWebhook
                 '{{NONCE}}'=>$escape($nonce),
                 '{{PATH}}'=>$escape($this->webPath()),
                 '{{CSRF}}'=>$escape($this->webCSRF($vault, (int)floor(time()/3600))),
+                '{{PORTAL}}'=>$escape(AFSystemPortalNavigationV1::path($vault)),
                 '{{INSTANCE}}'=>(string)$this->InstanceID
             ]);
             return $reply(200, $html, [
