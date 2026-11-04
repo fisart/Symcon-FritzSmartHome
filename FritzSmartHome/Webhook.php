@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/../libs/PortalSession.php';
 require_once __DIR__ . '/../libs/SystemPortalNavigation.php';
 
 
@@ -94,8 +95,7 @@ trait FritzSmartHomeWebhook
 
     private function webCSRF(int $vault, int $slot): string
     {
-        $cookie = (string)($_COOKIE['SEC_PORTAL_V2_' . $vault] ?? '');
-        if ($cookie === '' || strlen($cookie) > 1024) throw new RuntimeException('Portal session cookie missing.');
+        $cookie = AFPortalSessionV1::authenticatedCookie($vault);
         return $slot . ':' . hash_hmac('sha256',
             $this->webPath() . '|' . $vault . '|' . $cookie . '|' . $slot,
             $this->ReadAttributeString('WebCSRFKey'));
